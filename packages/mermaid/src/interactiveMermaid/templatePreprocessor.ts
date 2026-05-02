@@ -22,6 +22,8 @@
  * ```
  */
 
+import { escapeRegExp } from './utils.js';
+
 /** A parsed template definition. */
 export interface TemplateDefinition {
   /** Template name used in `use` statements. */
@@ -164,8 +166,4 @@ function substituteTemplate(
   });
 
   return result;
-}
-
-function escapeRegExp(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

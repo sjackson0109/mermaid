@@ -16,6 +16,7 @@
  */
 
 import type { InteractionConfig } from './interactionPreprocessor.js';
+import { escapeRegExp, idContainsSegment } from './utils.js';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -102,16 +103,6 @@ function findNodeElement(svgRoot: SVGSVGElement | Element, nodeId: string): Elem
   }
 
   return null;
-}
-
-/**
- * Return true when `segment` appears as a complete dash/underscore-delimited
- * token inside `id`.  This prevents, for example, nodeId `B` from matching
- * `flowchart-ABC-0`.
- */
-function idContainsSegment(id: string, segment: string): boolean {
-  const parts = id.split(/[-_]/);
-  return parts.includes(segment);
 }
 
 // ---------------------------------------------------------------------------
@@ -310,5 +301,5 @@ function createToggleIndicator(nodeEl: Element): SVGTextElement {
 }
 
 function escapeId(id: string): string {
-  return id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return escapeRegExp(id);
 }
