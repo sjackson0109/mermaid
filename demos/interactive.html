@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Interactive Mermaid – Proof of Concept</title>
+    <style>
+      /* ---------------------------------------------------------- layout */
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        background: #f4f6f8;
+        color: #222;
+      }
+      header {
+        background: #1e2a38;
+        color: #e8edf3;
+        padding: 20px 32px;
+      }
+      header h1 { margin: 0 0 4px; font-size: 1.5rem; }
+      header p  { margin: 0; font-size: 0.9rem; opacity: 0.75; }
+
+      main { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+
+      h2 { font-size: 1.15rem; margin: 36px 0 8px; border-bottom: 2px solid #d0d7e3; padding-bottom: 4px; }
+      h3 { font-size: 0.97rem; margin: 20px 0 6px; color: #444; }
+
+      /* ---------------------------------------------------------- cards */
+      .card {
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0,0,0,.10);
+        padding: 20px 24px;
+        margin-bottom: 24px;
+      }
+
+      /* ---------------------------------------------------------- split layout */
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+      @media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+
+      /* ---------------------------------------------------------- code / input */
+      .source-box {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      textarea {
+        width: 100%;
+        min-height: 220px;
+        font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+        font-size: 0.82rem;
+        border: 1px solid #ccd2de;
+        border-radius: 6px;
+        padding: 12px;
+        resize: vertical;
+        background: #f9fafc;
+        color: #1a1a2e;
+        tab-size: 2;
+      }
+      textarea:focus { outline: 2px solid #4a90d9; border-color: transparent; }
+
+      pre.code-block {
+        background: #1e2a38;
+        color: #c8d8ed;
+        border-radius: 6px;
+        padding: 14px 16px;
+        font-family: 'Fira Code', 'Cascadia Code', monospace;
+        font-size: 0.80rem;
+        overflow-x: auto;
+        white-space: pre;
+        margin: 0;
+      }
+
+      /* ---------------------------------------------------------- output */
+      .diagram-output {
+        background: #fff;
+        border: 1px solid #dde2ea;
+        border-radius: 6px;
+        padding: 16px;
+        min-height: 120px;
+        overflow: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .diagram-output svg { max-width: 100%; height: auto; }
+
+      /* ---------------------------------------------------------- buttons */
+      .btn {
+        display: inline-block;
+        padding: 8px 18px;
+        background: #3b82f6;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.88rem;
+        cursor: pointer;
+        font-family: inherit;
+        transition: background 0.15s;
+      }
+      .btn:hover { background: #2563eb; }
+      .btn-sm {
+        padding: 5px 12px;
+        font-size: 0.8rem;
+        background: #6b7280;
+      }
+      .btn-sm:hover { background: #4b5563; }
+
+      /* ---------------------------------------------------------- info box */
+      .info {
+        background: #eef3fb;
+        border-left: 4px solid #3b82f6;
+        padding: 10px 14px;
+        border-radius: 4px;
+        font-size: 0.88rem;
+        margin-bottom: 16px;
+      }
+      .info code { background: #dde8f9; padding: 1px 4px; border-radius: 3px; font-family: monospace; }
+
+      /* ---------------------------------------------------------- pipeline */
+      .pipeline {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        flex-wrap: wrap;
+        margin: 8px 0 20px;
+      }
+      .pipeline-step {
+        background: #e0e7f3;
+        border-radius: 6px;
+        padding: 6px 14px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #1e3a5f;
+        white-space: nowrap;
+      }
+      .pipeline-arrow {
+        color: #94a3b8;
+        font-size: 1.1rem;
+        padding: 0 6px;
+      }
+
+      /* ---------------------------------------------------------- tabs */
+      .tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+      .tab-btn {
+        padding: 6px 14px;
+        border: 1px solid #ccd2de;
+        border-radius: 5px 5px 0 0;
+        background: #e8edf5;
+        cursor: pointer;
+        font-size: 0.83rem;
+        font-family: inherit;
+        color: #444;
+        transition: background 0.1s;
+      }
+      .tab-btn.active {
+        background: #fff;
+        border-bottom-color: #fff;
+        color: #1e3a5f;
+        font-weight: 600;
+      }
+
+      /* ---------------------------------------------------------- error */
+      .error-msg {
+        color: #b91c1c;
+        font-size: 0.83rem;
+        padding: 6px 0;
+      }
+
+      /* ---------------------------------------------------------- feature badge */
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-left: 8px;
+        vertical-align: middle;
+      }
+      .badge-blue  { background: #dbeafe; color: #1d4ed8; }
+      .badge-green { background: #d1fae5; color: #065f46; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Interactive Mermaid <span style="font-weight:300;opacity:0.6">– Proof of Concept</span></h1>
+      <p>Parameterised templates · Collapsible nodes · Hover tooltips · Zero JavaScript required by the author</p>
+    </header>
+
+    <main>
+      <!-- Pipeline overview -->
+      <h2>Architecture</h2>
+      <div class="pipeline">
+        <div class="pipeline-step">Extended Mermaid Source</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">Template Preprocessor</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">Interaction Preprocessor</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">Mermaid Renderer</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">Interaction Binder</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">Interactive SVG</div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- Demo 1 – Interaction blocks only                                 -->
+      <!-- ================================================================ -->
+      <h2>Demo 1 – Interaction blocks <span class="badge badge-blue">Tooltip</span> <span class="badge badge-green">Collapsible</span></h2>
+      <div class="info">
+        Add <code>interaction &lt;nodeId&gt; { … }</code> blocks anywhere in your diagram definition.
+        They are stripped before Mermaid parses the source, then applied to the rendered SVG.
+        <br><br>
+        <strong>Try it:</strong> Hover over <em>B – API Gateway</em> and <em>C / D</em>.  Click B to collapse its children.
+      </div>
+
+      <div class="card split">
+        <div class="source-box">
+          <h3>Extended Mermaid source</h3>
+          <textarea id="demo1-source">graph TD
+  A[Client] --> B[API Gateway]
+  B --> C[Auth Service]
+  B --> D[Billing Service]
+  C --> E[Database]
+  D --> E
+
+  interaction B {
+    collapsible: true
+    defaultState: expanded
+    tooltip: "Central entry-point – click to collapse downstream nodes"
+  }
+
+  interaction C {
+    tooltip: "Handles all authentication and token logic"
+  }
+
+  interaction D {
+    tooltip: "Manages subscription billing and invoicing"
+  }
+
+  interaction E {
+    tooltip: "Shared PostgreSQL cluster"
+  }</textarea>
+          <div>
+            <button class="btn" onclick="renderDemo1()">▶ Render</button>
+            <button class="btn btn-sm" onclick="showProcessed('demo1')">Inspect processed source</button>
+          </div>
+          <pre id="demo1-processed" class="code-block" style="display:none"></pre>
+          <div id="demo1-error" class="error-msg"></div>
+        </div>
+        <div>
+          <h3>Interactive output</h3>
+          <div class="diagram-output" id="demo1-output"></div>
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- Demo 2 – Template expansion                                       -->
+      <!-- ================================================================ -->
+      <h2>Demo 2 – Parameterised templates <span class="badge badge-blue">Template</span></h2>
+      <div class="info">
+        Define reusable diagram skeletons with <code>template name(params) { … }</code>,
+        then instantiate them with <code>use name(key="value", arr=["a","b"])</code>.
+        Placeholders use <code>&#123;&#123;paramName&#125;&#125;</code> or <code>&#123;&#123;arr[0]&#125;&#125;</code> syntax.
+      </div>
+
+      <div class="card split">
+        <div class="source-box">
+          <h3>Extended Mermaid source</h3>
+          <textarea id="demo2-source">template service_flow(serviceName, endpoints[]) {
+  graph TD
+    A[Client] --> B[{{serviceName}}]
+    B --> C[{{endpoints[0]}}]
+    B --> D[{{endpoints[1]}}]
+
+  interaction B {
+    tooltip: "{{serviceName}} – click to explore endpoints"
+    collapsible: true
+    defaultState: expanded
+  }
+
+  interaction C {
+    tooltip: "Endpoint: {{endpoints[0]}}"
+  }
+
+  interaction D {
+    tooltip: "Endpoint: {{endpoints[1]}}"
+  }
+}
+
+use service_flow(
+  serviceName="Auth API",
+  endpoints=["Login", "Token Refresh"]
+)</textarea>
+          <div>
+            <button class="btn" onclick="renderDemo2()">▶ Render</button>
+            <button class="btn btn-sm" onclick="showProcessed('demo2')">Inspect processed source</button>
+          </div>
+          <pre id="demo2-processed" class="code-block" style="display:none"></pre>
+          <div id="demo2-error" class="error-msg"></div>
+        </div>
+        <div>
+          <h3>Interactive output</h3>
+          <div class="diagram-output" id="demo2-output"></div>
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- Demo 3 – Combined microservice group template                    -->
+      <!-- ================================================================ -->
+      <h2>Demo 3 – Combined template + interactions <span class="badge badge-blue">Template</span> <span class="badge badge-green">Collapsible</span> <span class="badge badge-blue">Tooltip</span></h2>
+      <div class="info">
+        Interactions can live inside template bodies and will be substituted just like diagram nodes.
+        This example shows a full microservice group that is both parameterised and interactive.
+      </div>
+
+      <div class="card split">
+        <div class="source-box">
+          <h3>Extended Mermaid source</h3>
+          <textarea id="demo3-source">template microservice_group(name, services[]) {
+  graph TD
+    GW[Gateway] --> HUB[{{name}}]
+    HUB --> S1[{{services[0]}}]
+    HUB --> S2[{{services[1]}}]
+    HUB --> S3[{{services[2]}}]
+
+  interaction HUB {
+    collapsible: true
+    defaultState: collapsed
+    tooltip: "{{name}} hub – click to expand services"
+  }
+
+  interaction S1 {
+    tooltip: "Primary service: {{services[0]}}"
+  }
+
+  interaction S2 {
+    tooltip: "Secondary service: {{services[1]}}"
+  }
+
+  interaction S3 {
+    tooltip: "Tertiary service: {{services[2]}}"
+  }
+}
+
+use microservice_group(
+  name="Payment Platform",
+  services=["Stripe Gateway", "Fraud Detection", "Receipt Service"]
+)</textarea>
+          <div>
+            <button class="btn" onclick="renderDemo3()">▶ Render</button>
+            <button class="btn btn-sm" onclick="showProcessed('demo3')">Inspect processed source</button>
+          </div>
+          <pre id="demo3-processed" class="code-block" style="display:none"></pre>
+          <div id="demo3-error" class="error-msg"></div>
+        </div>
+        <div>
+          <h3>Interactive output</h3>
+          <div class="diagram-output" id="demo3-output"></div>
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- Demo 4 – Live editor                                              -->
+      <!-- ================================================================ -->
+      <h2>Demo 4 – Live editor</h2>
+      <div class="info">
+        Write your own extended Mermaid source below and see the result in real time.
+      </div>
+      <div class="card split">
+        <div class="source-box">
+          <h3>Your source</h3>
+          <textarea id="demo4-source" oninput="renderDemo4()">graph LR
+  A[Start] --> B[Process]
+  B --> C[Result]
+  B --> D[Error path]
+
+  interaction A {
+    tooltip: "Workflow entry point"
+  }
+
+  interaction B {
+    collapsible: true
+    defaultState: expanded
+    tooltip: "Main processing step – click to collapse"
+  }
+
+  interaction C {
+    tooltip: "Happy path output"
+  }
+
+  interaction D {
+    tooltip: "Error handling branch"
+  }</textarea>
+          <pre id="demo4-processed" class="code-block" style="display:none"></pre>
+          <div id="demo4-error" class="error-msg"></div>
+        </div>
+        <div>
+          <h3>Live output</h3>
+          <div class="diagram-output" id="demo4-output"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ================================================================ -->
+    <!-- Scripts                                                           -->
+    <!-- ================================================================ -->
+    <script type="module">
+      import mermaid from '/mermaid.esm.mjs';
+
+      mermaid.initialize({ startOnLoad: false, securityLevel: 'loose' });
+
+      // ----------------------------------------------------------------
+      // Template Preprocessor
+      // ----------------------------------------------------------------
+      function parseTemplates(source) {
+        const templates = new Map();
+        const templateRegex = /^[ \t]*template\s+(\w+)\s*\(([^)]*)\)\s*\{([\s\S]*?)\n\}/gm;
+        let remaining = source;
+        let match;
+        while ((match = templateRegex.exec(source)) !== null) {
+          const name = match[1];
+          const params = match[2].split(',').map(p => p.trim().replace(/\[\]$/, '').trim()).filter(Boolean);
+          const body = match[3];
+          templates.set(name, { name, params, body });
+          remaining = remaining.replace(match[0], '');
+        }
+        return { templates, remaining: remaining.trim() };
+      }
+
+      function processUseStatements(source, templates) {
+        const useRegex = /^[ \t]*use\s+(\w+)\s*\(([\s\S]*?)\)/gm;
+        return source.replace(useRegex, (_, name, argsStr) => {
+          const template = templates.get(name);
+          if (!template) throw new Error(`Unknown template: "${name}"`);
+          return substituteTemplate(template, parseArgs(argsStr));
+        });
+      }
+
+      function parseArgs(argsStr) {
+        const args = new Map();
+        const flat = argsStr.replace(/\r?\n/g, ' ').trim();
+        const argRegex = /(\w+)\s*=\s*(\[(?:[^\]]*)\]|"[^"]*"|'[^']*'|[^\s,]+)/g;
+        let m;
+        while ((m = argRegex.exec(flat)) !== null) {
+          const key = m[1];
+          const raw = m[2];
+          if (raw.startsWith('[')) {
+            args.set(key, raw.slice(1, -1).split(',').map(v => v.trim().replace(/^["']|["']$/g, '')));
+          } else {
+            args.set(key, raw.replace(/^["']|["']$/g, ''));
+          }
+        }
+        return args;
+      }
+
+      function substituteTemplate(template, args) {
+        let result = template.body;
+        args.forEach((value, key) => {
+          if (Array.isArray(value)) {
+            value.forEach((item, idx) => {
+              result = result.replace(new RegExp(`\\{\\{${key}\\[${idx}\\]\\}\\}`, 'g'), item);
+            });
+          } else {
+            result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+          }
+        });
+        return result;
+      }
+
+      // ----------------------------------------------------------------
+      // Interaction Preprocessor
+      // ----------------------------------------------------------------
+      function parseInteractions(source) {
+        const interactions = [];
+        const interactionRegex = /^[ \t]*interaction\s+(\w+)\s*\{([\s\S]*?)\n[ \t]*\}/gm;
+        const matches = [];
+        let match;
+        while ((match = interactionRegex.exec(source)) !== null) {
+          matches.push({ full: match[0], nodeId: match[1], body: match[2] });
+        }
+        let diagramText = source;
+        for (const m of matches) {
+          diagramText = diagramText.replace(m.full, '');
+          interactions.push(parseInteractionBlock(m.nodeId, m.body));
+        }
+        return { diagramText: diagramText.trim(), interactions };
+      }
+
+      function parseInteractionBlock(nodeId, body) {
+        const config = { nodeId };
+        for (const line of body.split('\n').map(l => l.trim()).filter(Boolean)) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx === -1) continue;
+          const key = line.slice(0, colonIdx).trim();
+          const value = line.slice(colonIdx + 1).trim().replace(/^["']|["']$/g, '');
+          if (key === 'collapsible')   config.collapsible   = value === 'true';
+          if (key === 'defaultState')  config.defaultState  = value;
+          if (key === 'tooltip')       config.tooltip       = value;
+          if (key === 'cursor')        config.cursor        = value;
+        }
+        return config;
+      }
+
+      // ----------------------------------------------------------------
+      // Interaction Binder
+      // ----------------------------------------------------------------
+      let _tooltipEl = null;
+
+      function ensureTooltip() {
+        if (_tooltipEl) return;
+        _tooltipEl = document.createElement('div');
+        _tooltipEl.className = 'mermaid-interactive-tooltip';
+        Object.assign(_tooltipEl.style, {
+          position: 'fixed', background: 'rgba(0,0,0,0.78)', color: '#fff',
+          padding: '6px 10px', borderRadius: '4px', fontSize: '13px',
+          lineHeight: '1.4', pointerEvents: 'none', zIndex: '9999',
+          maxWidth: '280px', wordWrap: 'break-word', opacity: '0',
+          transition: 'opacity 0.15s ease', whiteSpace: 'pre-wrap',
+        });
+        document.body.appendChild(_tooltipEl);
+      }
+
+      function findNode(svgRoot, nodeId) {
+        const byId = svgRoot.querySelector(`[id*="${nodeId}"]`);
+        if (byId) return byId;
+        for (const el of svgRoot.querySelectorAll('.node')) {
+          const label = el.querySelector('.nodeLabel, .label, text');
+          if (label?.textContent?.trim() === nodeId) return el;
+        }
+        return svgRoot.querySelector(`[data-id="${nodeId}"]`) || null;
+      }
+
+      function applyTooltip(el, text) {
+        ensureTooltip();
+        const ns = 'http://www.w3.org/2000/svg';
+        let title = el.querySelector('title');
+        if (!title) { title = document.createElementNS(ns, 'title'); el.insertBefore(title, el.firstChild); }
+        title.textContent = text;
+        el.setAttribute('data-tooltip', text);
+        el.addEventListener('mouseenter', e => {
+          _tooltipEl.textContent = text; _tooltipEl.style.opacity = '1';
+          _tooltipEl.style.left = `${e.clientX + 14}px`; _tooltipEl.style.top = `${e.clientY - 6}px`;
+        });
+        el.addEventListener('mousemove', e => {
+          _tooltipEl.style.left = `${e.clientX + 14}px`; _tooltipEl.style.top = `${e.clientY - 6}px`;
+        });
+        el.addEventListener('mouseleave', () => { _tooltipEl.style.opacity = '0'; });
+      }
+
+      function applyCollapsible(svgRoot, nodeEl, nodeId, defaultState) {
+        const allEdges = Array.from(svgRoot.querySelectorAll('.edgePath, .edge, [class*="edgePath"]'));
+        const escId = nodeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const ownEdges = allEdges.filter(e =>
+          new RegExp(`(?:^|[-_])${escId}(?:[-_]|$)`).test(e.getAttribute('id') ?? '')
+        );
+
+        const targetNodeIds = ownEdges.map(edge => {
+          const parts = (edge.getAttribute('id') ?? '').split('-');
+          const idx = parts.indexOf(nodeId);
+          return idx !== -1 && idx + 1 < parts.length ? parts[idx + 1] : null;
+        }).filter(Boolean);
+
+        const targetNodes = [...new Set(targetNodeIds)]
+          .map(id => svgRoot.querySelector(`[id*="${id}"]`))
+          .filter(Boolean);
+
+        // Toggle indicator
+        const ns = 'http://www.w3.org/2000/svg';
+        const indicator = document.createElementNS(ns, 'text');
+        indicator.classList.add('mermaid-collapse-indicator');
+        indicator.setAttribute('font-size', '11');
+        indicator.setAttribute('fill', '#4a5568');
+        indicator.style.pointerEvents = 'none';
+        indicator.style.userSelect = 'none';
+        const shape = nodeEl.querySelector('rect, circle, ellipse, polygon, path');
+        try {
+          const bbox = (shape ?? nodeEl).getBBox();
+          indicator.setAttribute('x', String(bbox.x + bbox.width - 14));
+          indicator.setAttribute('y', String(bbox.y + 13));
+        } catch { indicator.setAttribute('dx', '-14'); indicator.setAttribute('dy', '13'); }
+        nodeEl.appendChild(indicator);
+
+        let expanded = defaultState !== 'collapsed';
+
+        function applyVisibility(show) {
+          const d = show ? '' : 'none';
+          ownEdges.forEach(e => e.style.display = d);
+          targetNodes.forEach(n => n.style.display = d);
+          indicator.textContent = show ? '▼' : '▶';
+        }
+
+        applyVisibility(expanded);
+        nodeEl.addEventListener('click', () => { expanded = !expanded; applyVisibility(expanded); });
+      }
+
+      function bindInteractions(svgRoot, interactions) {
+        for (const cfg of interactions) {
+          const el = findNode(svgRoot, cfg.nodeId);
+          if (!el) continue;
+          if (cfg.tooltip)    applyTooltip(el, cfg.tooltip);
+          if (cfg.collapsible) applyCollapsible(svgRoot, el, cfg.nodeId, cfg.defaultState ?? 'expanded');
+          el.style.cursor = cfg.cursor || (cfg.tooltip || cfg.collapsible ? 'pointer' : '');
+        }
+      }
+
+      // ----------------------------------------------------------------
+      // Full pipeline
+      // ----------------------------------------------------------------
+      let renderCounter = 0;
+
+      async function renderExtended(source) {
+        const { templates, remaining } = parseTemplates(source);
+        const expanded = templates.size > 0 ? processUseStatements(remaining, templates) : remaining;
+        const { diagramText, interactions } = parseInteractions(expanded);
+        return { diagramText, interactions };
+      }
+
+      async function renderInto(containerId, source, errorId, processedId) {
+        const container = document.getElementById(containerId);
+        const errorEl   = document.getElementById(errorId);
+        const procEl    = document.getElementById(processedId);
+        errorEl.textContent = '';
+        try {
+          const { diagramText, interactions } = await renderExtended(source);
+          if (procEl && !procEl.classList.contains('hidden')) {
+            procEl.textContent = diagramText;
+          }
+          if (procEl) procEl._lastProcessed = diagramText;
+
+          const id = `mermaid-interactive-${++renderCounter}`;
+          const { svg } = await mermaid.render(id, diagramText);
+          container.innerHTML = svg;
+          const svgEl = container.querySelector('svg');
+          if (svgEl && interactions.length > 0) bindInteractions(svgEl, interactions);
+        } catch (err) {
+          errorEl.textContent = `⚠ ${err.message}`;
+          console.error(err);
+        }
+      }
+
+      // ----------------------------------------------------------------
+      // Demo entry points (exposed to global scope for onclick handlers)
+      // ----------------------------------------------------------------
+      window.renderDemo1 = () => renderInto('demo1-output',
+        document.getElementById('demo1-source').value, 'demo1-error', 'demo1-processed');
+      window.renderDemo2 = () => renderInto('demo2-output',
+        document.getElementById('demo2-source').value, 'demo2-error', 'demo2-processed');
+      window.renderDemo3 = () => renderInto('demo3-output',
+        document.getElementById('demo3-source').value, 'demo3-error', 'demo3-processed');
+      window.renderDemo4 = () => renderInto('demo4-output',
+        document.getElementById('demo4-source').value, 'demo4-error', 'demo4-processed');
+
+      window.showProcessed = (demo) => {
+        const procEl = document.getElementById(`${demo}-processed`);
+        const isHidden = procEl.style.display === 'none';
+        procEl.style.display = isHidden ? '' : 'none';
+        if (isHidden && procEl._lastProcessed) procEl.textContent = procEl._lastProcessed;
+      };
+
+      // ----------------------------------------------------------------
+      // Auto-render all demos on load
+      // ----------------------------------------------------------------
+      await renderDemo1();
+      await renderDemo2();
+      await renderDemo3();
+      await renderDemo4();
+    </script>
+  </body>
+</html>
