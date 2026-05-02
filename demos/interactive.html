@@ -529,9 +529,15 @@ use microservice_group(
         document.body.appendChild(_tooltipEl);
       }
 
+      function idContainsSegment(id, segment) {
+        return id.split(/[-_]/).includes(segment);
+      }
+
       function findNode(svgRoot, nodeId) {
-        const byId = svgRoot.querySelector(`[id*="${nodeId}"]`);
-        if (byId) return byId;
+        // Use segment-exact matching to avoid false positives (e.g. 'B' matching 'ABC').
+        for (const el of svgRoot.querySelectorAll(`[id*="${nodeId}"]`)) {
+          if (idContainsSegment(el.getAttribute('id') ?? '', nodeId)) return el;
+        }
         for (const el of svgRoot.querySelectorAll('.node')) {
           const label = el.querySelector('.nodeLabel, .label, text');
           if (label?.textContent?.trim() === nodeId) return el;
@@ -563,15 +569,16 @@ use microservice_group(
           new RegExp(`(?:^|[-_])${escId}(?:[-_]|$)`).test(e.getAttribute('id') ?? '')
         );
 
-        const targetNodeIds = ownEdges.map(edge => {
+        const targetNodeIds = [...new Set(ownEdges.map(edge => {
           const parts = (edge.getAttribute('id') ?? '').split('-');
           const idx = parts.indexOf(nodeId);
           return idx !== -1 && idx + 1 < parts.length ? parts[idx + 1] : null;
-        }).filter(Boolean);
+        }).filter(Boolean))];
 
-        const targetNodes = [...new Set(targetNodeIds)]
-          .map(id => svgRoot.querySelector(`[id*="${id}"]`))
-          .filter(Boolean);
+        const targetNodes = targetNodeIds.flatMap(segId =>
+          Array.from(svgRoot.querySelectorAll(`[id*="${segId}"]`))
+            .filter(el => idContainsSegment(el.getAttribute('id') ?? '', segId))
+        ).filter(Boolean);
 
         // Toggle indicator
         const ns = 'http://www.w3.org/2000/svg';
@@ -595,6 +602,10 @@ use microservice_group(
           const d = show ? '' : 'none';
           ownEdges.forEach(e => e.style.display = d);
           targetNodes.forEach(n => n.style.display = d);
+          // Hide label groups using segment-exact matching.
+          for (const lg of svgRoot.querySelectorAll('[id*="L-"]')) {
+            if (idContainsSegment(lg.getAttribute('id') ?? '', nodeId)) lg.style.display = d;
+          }
           indicator.textContent = show ? '▼' : '▶';
         }
 

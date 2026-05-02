@@ -116,9 +116,12 @@ export function preprocessExtended(source: string): PreprocessResult {
   return { diagramText, interactions };
 }
 
-// ---------------------------------------------------------------------------
-// Render helper
-// ---------------------------------------------------------------------------
+// Monotonically increasing counter for unique render IDs.
+// Using a counter instead of Date.now() avoids collisions when multiple
+// diagrams are rendered within the same millisecond.
+let _renderCounter = 0;
+
+
 
 /** Minimal interface for the Mermaid render function used by {@link renderInteractive}. */
 export interface MermaidRenderFn {
@@ -156,7 +159,7 @@ export async function renderInteractive(
 ): Promise<void> {
   const { diagramText, interactions } = preprocessExtended(source);
 
-  const id = `mermaid-interactive-${Date.now()}`;
+  const id = `mermaid-interactive-${++_renderCounter}`;
   const { svg } = await mermaidApi.render(id, diagramText);
 
   container.innerHTML = svg;

@@ -71,13 +71,19 @@ export function bindInteractions(
  * Mermaid prefixes node IDs in various ways depending on diagram type and
  * version (e.g. `flowchart-B-0`, `node-B`).  This function tries several
  * strategies so it works across common diagram types.
+ *
+ * To avoid false positives from substring matches (e.g. looking up `B` should
+ * not match `flowchart-ABC-0`), candidate elements are validated to ensure the
+ * nodeId appears as a complete dash-separated segment.
  */
 function findNodeElement(svgRoot: SVGSVGElement | Element, nodeId: string): Element | null {
-  // Strategy 1 – ID attribute contains the node identifier.
-  // Mermaid commonly uses IDs like "flowchart-B-0" or "subGraph0".
-  const byId = svgRoot.querySelector(`[id*="${nodeId}"]`);
-  if (byId) {
-    return byId;
+  // Strategy 1 – ID attribute contains the node identifier as a complete
+  // dash-delimited segment (e.g. "flowchart-B-0" or "node-B").
+  const candidates = svgRoot.querySelectorAll(`[id*="${nodeId}"]`);
+  for (const el of candidates) {
+    if (idContainsSegment(el.getAttribute('id') ?? '', nodeId)) {
+      return el;
+    }
   }
 
   // Strategy 2 – `<g class="node …">` whose inner label text equals nodeId.
@@ -96,6 +102,16 @@ function findNodeElement(svgRoot: SVGSVGElement | Element, nodeId: string): Elem
   }
 
   return null;
+}
+
+/**
+ * Return true when `segment` appears as a complete dash/underscore-delimited
+ * token inside `id`.  This prevents, for example, nodeId `B` from matching
+ * `flowchart-ABC-0`.
+ */
+function idContainsSegment(id: string, segment: string): boolean {
+  const parts = id.split(/[-_]/);
+  return parts.includes(segment);
 }
 
 // ---------------------------------------------------------------------------
@@ -204,18 +220,28 @@ function applyCollapsible(
   });
 
   // Also capture the target nodes so they can be hidden too.
-  const targetNodeIds = ownEdges
-    .map((edge) => {
-      const id = edge.getAttribute('id') ?? '';
-      // Extract the destination part of IDs like "flowchart-B-C-0".
-      const parts = id.split('-');
-      const idx = parts.indexOf(nodeId);
-      return idx !== -1 && idx + 1 < parts.length ? parts[idx + 1] : null;
-    })
-    .filter((id): id is string => id !== null);
+  // We use idContainsSegment to avoid matching nodes whose ID merely contains
+  // the target segment as a substring.
+  const targetNodeIds = [
+    ...new Set(
+      ownEdges
+        .map((edge) => {
+          const id = edge.getAttribute('id') ?? '';
+          // Extract the destination segment from IDs like "flowchart-B-C-0".
+          const parts = id.split('-');
+          const idx = parts.indexOf(nodeId);
+          return idx !== -1 && idx + 1 < parts.length ? parts[idx + 1] : null;
+        })
+        .filter((id): id is string => id !== null)
+    ),
+  ];
 
   const targetNodes = targetNodeIds
-    .map((id) => svgRoot.querySelector(`[id*="${id}"]`))
+    .flatMap((segId) =>
+      Array.from(svgRoot.querySelectorAll(`[id*="${segId}"]`)).filter((el) =>
+        idContainsSegment(el.getAttribute('id') ?? '', segId)
+      )
+    )
     .filter((el): el is Element => el !== null);
 
   // Build the toggle indicator (▼ / ▶).
@@ -230,9 +256,11 @@ function applyCollapsible(
     }
     for (const target of targetNodes) {
       (target as SVGElement).style.display = displayValue;
-      // Also hide the edge label groups.
-      const labelGroup = svgRoot.querySelector(`[id*="L-${nodeId}"]`);
-      if (labelGroup) {
+    }
+    // Hide edge label groups whose ID contains the nodeId as an exact segment
+    // (e.g. "L-B-C" for an edge from B to C).
+    for (const labelGroup of svgRoot.querySelectorAll('[id*="L-"]')) {
+      if (idContainsSegment(labelGroup.getAttribute('id') ?? '', nodeId)) {
         (labelGroup as SVGElement).style.display = displayValue;
       }
     }
